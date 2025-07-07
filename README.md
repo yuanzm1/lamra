@@ -134,10 +134,11 @@ Many thanks to the code bases from [lmms-finetune](https://github.com/zjysteven/
 ## Citation
 If you use this code for your research or project, please cite:
 ```latex
-@article{liu2024lamra,
-  title={LamRA: Large Multimodal Model as Your Advanced Retrieval Assistant},
-  author={Yikun Liu and Pingan Chen and Jiayin Cai and Xiaolong Jiang and Yao Hu and Jiangchao Yao and Yanfeng Wang and Weidi Xie},
-  journal={arXiv preprint arXiv:2412.01720},
-  year={2024}
+@inproceedings{liu2025lamra,
+  title={Lamra: Large multimodal model as your advanced retrieval assistant},
+  author={Liu, Yikun and Zhang, Yajie and Cai, Jiayin and Jiang, Xiaolong and Hu, Yao and Yao, Jiangchao and Wang, Yanfeng and Xie, Weidi},
+  booktitle={Proceedings of the Computer Vision and Pattern Recognition Conference},
+  pages={4015--4025},
+  year={2025}
 }
 ```
