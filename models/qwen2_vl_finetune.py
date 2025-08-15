@@ -25,6 +25,33 @@ class Similarity(nn.Module):
         return self.cos(x, y) / self.temp
 
 class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration):
+    def __init__(self, config):
+        super().__init__(config)
+        # 定义MLP：输入为倒数第二层隐藏维度，输出维度与原特征一致（确保后续计算兼容）
+        self.modify_mlp = nn.Sequential(
+            nn.Linear(config.hidden_size, config.hidden_size),  # 第一层线性变换
+            nn.GELU(),  # 激活函数
+            nn.Linear(config.hidden_size, config.hidden_size)   # 输出维度与原特征匹配
+        )
+        # 初始化MLP权重
+        for m in self.modify_mlp.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+                
+        # 新增：可学习的prompt
+        self.prompt_length = 10  # 可学习prompt的长度（可根据需求调整）
+        self.modify_prompt_embeddings = nn.Embedding(
+            self.prompt_length,  # prompt token数量
+            config.hidden_size   # 嵌入维度，与模型隐藏层维度一致
+        )
+        # 初始化prompt嵌入（可选：用正态分布初始化）
+        nn.init.normal_(self.modify_prompt_embeddings.weight, mean=0.0, std=config.initializer_range)
+                
+        # 新增：记录训练轮次，用于控制伪标签更新频率
+        self.register_buffer("current_iter", torch.tensor(0, dtype=torch.long))
+        # 新增：用于缓存历史相似度，稳定伪标签生成
+        self.register_buffer("prev_similarities", None)
 
     def get_features(
         self,
@@ -67,6 +94,7 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
             if attention_mask is not None:
                 attention_mask = attention_mask.to(inputs_embeds.device)
 
+        output_hidden_states = True
         outputs = self.model(
             input_ids=None,
             position_ids=position_ids,
@@ -80,6 +108,11 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
         )
 
         hidden_states = outputs[0]
+        
+        # # 输出倒数第二层的hidden_states
+        # hidden_states = outputs[1][-2]
+        # hidden_states = self.modify_mlp(hidden_states)
+        
         embed_index = self.config.emb_token_ids[0]
         embed_indices = torch.argmax((labels == embed_index).int(), dim=1) 
         embed_features = hidden_states[torch.arange(len(embed_indices)), embed_indices - 1] # (batch_size, embed_dim)
@@ -107,7 +140,12 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
         has_hard_negative=False,
         qids=None,
         dids=None,
-        ids=None 
+        ids=None,
+        # 新增：控制伪标签生成的参数
+        pseudo_label_top1_ratio=0.1,   # 顶部10%样本赋予最高相关性
+        pseudo_label_top2_ratio=0.3,   # 顶部10%-30%样本赋予中等相关性
+        pseudo_label_smoothing=0.1,    # 伪标签平滑系数，减少噪声影响
+        update_pseudo_labels_every=100   # 每100个iter更新一次伪标签缓存
     ) -> Union[Tuple, Qwen2VLCausalLMOutputWithPast]:
         r"""
         Args:
@@ -153,6 +191,11 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        # 新增：生成可学习prompt的嵌入（形状：[batch_size, prompt_length, hidden_size]）
+        batch_size = input_ids.size(0) if input_ids is not None else inputs_embeds.size(0)
+        prompt_ids = torch.arange(self.prompt_length, device=self.device).repeat(batch_size, 1)  # [batch_size, prompt_length]
+        prompt_embeds = self.modify_prompt_embeddings(prompt_ids)  # [batch_size, prompt_length, hidden_size]
 
         # set mini_batch to 32
         mini_batch_size = 32 
@@ -185,9 +228,33 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
                     video_embeds = self.visual(pixel_values_videos, grid_thw=video_grid_thw).to(inputs_embeds.device)
                     video_mask = input_ids == self.config.video_token_id
                     inputs_embeds[video_mask] = video_embeds
+                # if attention_mask is not None:
+                #     batch_attention_mask = attention_mask_list[i].to(batch_inputs_embeds.device)
+                    
+                # 3. 插入可学习prompt（新增逻辑）
+                # 获取当前迷你批次的prompt嵌入
+                start_idx = i * mini_batch_size
+                end_idx = min((i+1)*mini_batch_size, batch_size)
+                current_prompt_embeds = prompt_embeds[start_idx:end_idx]  # [mini_batch, prompt_length, hidden_size]
+                # 将prompt插入到输入嵌入前面
+                batch_inputs_embeds = torch.cat([current_prompt_embeds, batch_inputs_embeds], dim=1)
                 if attention_mask is not None:
+                    # 生成prompt部分的注意力掩码（全1）
+                    prompt_mask = torch.ones(
+                        (batch_inputs_embeds.size(0), self.prompt_length),
+                        device=batch_inputs_embeds.device,
+                        dtype=attention_mask_list[i].dtype
+                    )
                     batch_attention_mask = attention_mask_list[i].to(batch_inputs_embeds.device)
-
+                    batch_attention_mask = torch.cat([prompt_mask, batch_attention_mask], dim=1)
+                else:
+                    # 若没有原始掩码，生成全1掩码
+                    batch_attention_mask = torch.ones(
+                        (batch_inputs_embeds.size(0), batch_inputs_embeds.size(1)),
+                        device=batch_inputs_embeds.device,
+                        dtype=torch.float32
+                    )
+                    
             outputs = self.model(
                 input_ids=None,
                 position_ids=position_ids,
@@ -268,4 +335,5 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
         nce_labels = torch.arange(cos_sim.size(0)).long().to(cos_sim.device)
 
         loss = loss_fct(cos_sim, nce_labels)
+        
         return SequenceClassifierOutput(loss=loss)

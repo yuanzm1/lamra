@@ -5,13 +5,19 @@ from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoPro
 from . import register_loader
 from .base import BaseModelLoader
 from models.qwen2_vl import Qwen2VLRetForConditionalGeneration
+from models.qwen2_vl_finetune import Qwen2VLRetFinetuneForConditionalGeneration
 
 
 @register_loader("qwen2-vl-2b")
 class Qwen2VL2BModelLoader(BaseModelLoader):
-    def load(self, load_model: bool = True) -> Tuple[AutoModelForCausalLM, AutoTokenizer, None]:
-        if load_model:
+    def load(self, load_model: bool = True, pretrain=True) -> Tuple[AutoModelForCausalLM, AutoTokenizer, None]:
+        if load_model and pretrain:
             model = Qwen2VLRetForConditionalGeneration.from_pretrained(
+                self.model_local_path, 
+                **self.loading_kwargs,
+            ) 
+        elif load_model and not pretrain:
+            model = Qwen2VLRetFinetuneForConditionalGeneration.from_pretrained(
                 self.model_local_path, 
                 **self.loading_kwargs,
             ) 

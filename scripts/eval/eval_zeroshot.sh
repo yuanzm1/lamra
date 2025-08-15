@@ -1,13 +1,13 @@
-ORIGINAL_MODEL_ID="./checkpoints/hf_models/Qwen2-VL-7B-Instruct"
-MODEL_ID="code-kunkun/LamRA-Ret"
+ORIGINAL_MODEL_ID="/mnt/disk2/yuanzm/weights/modelscope/Qwen2-VL-2B-Instruct/"
+MODEL_ID="/mnt/disk2/yuanzm/weights/lamra/checkpoints/qwen2-vl-2b_LamRA-Ret/"
 
-CUDA_VISIBLE_DEVICES='0,1,2,3,4,5,6,7' accelerate launch --multi_gpu --main_process_port 29508 eval/eval_zeroshot/eval_urban1k.py \
-    --image_data_path ./data/Urban1k/image \
-    --text_data_path ./data/Urban1k/caption \
-    --batch_size 4 \
-    --original_model_id $ORIGINAL_MODEL_ID \
-    --model_id $MODEL_ID \
-    --save_for_rerank
+# CUDA_VISIBLE_DEVICES='0,1' accelerate launch --multi_gpu --main_process_port 29508 eval/eval_zeroshot/eval_urban1k.py \
+#     --image_data_path ./data/Urban1k/image \
+#     --text_data_path ./data/Urban1k/caption \
+#     --batch_size 4 \
+#     --original_model_id $ORIGINAL_MODEL_ID \
+#     --model_id $MODEL_ID \
+#     --save_for_rerank
 
 
 # CUDA_VISIBLE_DEVICES='0,1,2,3,4,5,6,7' accelerate launch --multi_gpu --main_process_port 29508 eval/eval_zeroshot/eval_sharegpt4v.py \
@@ -18,14 +18,14 @@ CUDA_VISIBLE_DEVICES='0,1,2,3,4,5,6,7' accelerate launch --multi_gpu --main_proc
 #     --model_id $MODEL_ID \
 #     --save_for_rerank
 
-# CUDA_VISIBLE_DEVICES='0,1,2,3,4,5,6,7' accelerate launch --multi_gpu --main_process_port 29508 eval/eval_zeroshot/eval_flickr.py \
-#     --image_data_path ./data/flickr/images \
-#     --text_data_path ./data/flickr/flickr_text.json \
-#     --batch_size 4 \
-#     --original_model_id $ORIGINAL_MODEL_ID \
-#     --model_id $MODEL_ID \
-#     --mode finetuned \
-#     --save_for_rerank
+CUDA_VISIBLE_DEVICES='0' accelerate launch --multi_gpu --main_process_port 29508 eval/eval_zeroshot/eval_flickr.py \
+    --image_data_path /mnt/disk2/yuanzm/dataset/lamra_data/flickr/images \
+    --text_data_path /mnt/disk2/yuanzm/dataset/lamra_data/flickr/flickr_text.json \
+    --batch_size 4 \
+    --original_model_id $ORIGINAL_MODEL_ID \
+    --model_id $MODEL_ID \
+    --mode finetuned \
+    --save_for_rerank
 
 # CUDA_VISIBLE_DEVICES='0,1,2,3,4,5,6,7' accelerate launch --multi_gpu --main_process_port 29508 eval/eval_zeroshot/eval_ccneg.py \
 #     --data_path ./data/ccneg/ccneg_preprocessed.pt \

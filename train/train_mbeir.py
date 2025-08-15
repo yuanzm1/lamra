@@ -26,6 +26,49 @@ from utils import (
     get_peft_state_maybe_zero_3, TrainerWithCustomSampler
 )
 
+import pdb
+# 复用之前定义的加载MLP参数的函数
+def load_mlp_parameters(model, load_path):
+    """加载单独保存的mlp参数并赋值给模型"""
+    mlp_params = torch.load(load_path, map_location='cuda:0')
+    loaded_count = 0
+    
+    for name, param in model.named_parameters():
+        # pdb.set_trace()
+        if 'modify' in name:
+            new_name = name
+            param.data.copy_(mlp_params[new_name])
+            loaded_count += 1
+    if loaded_count == 0:
+        raise ValueError("未找到匹配的MLP参数")
+    return loaded_count
+
+def save_mlp_parameters(model, save_path):
+    """
+    提取并单独保存模型中mlp模块的参数
+    
+    Args:
+        model: 包含mlp模块的PyTorch模型
+        save_path: 保存参数的文件路径（如"mlp_params.pt"）
+    
+    Returns:
+        保存的参数数量
+    """
+    # 提取mlp相关参数
+    mlp_params = {}
+    for name, param in model.named_parameters():
+        if "modify" in name:
+            mlp_params[name] = param.data
+    
+    # 验证是否找到mlp参数
+    if not mlp_params:
+        raise ValueError("在模型中未找到名称包含'mlp'的参数，请检查模块命名")
+    pth_path = os.path.join(save_path, "mlp.pth")
+    # 保存参数
+    torch.save(mlp_params, pth_path)
+    
+    return len(mlp_params)
+
 
 def train():
     parser = transformers.HfArgumentParser(
@@ -180,10 +223,14 @@ def train():
         train_dataset=train_dataset, 
     )
     
+    save_mlp_parameters(model, output_dir)
+    load_mlp_parameters(model, os.path.join(output_dir, "mlp.pth"))
+    
     trainer.train()
     trainer.save_state()
 
     safe_save_model_for_hf_trainer(trainer=trainer, output_dir=output_dir)
+    save_mlp_parameters(model, output_dir)
     
 
 if __name__ == "__main__":

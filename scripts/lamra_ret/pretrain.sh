@@ -1,4 +1,4 @@
-NUM_GPUS=8
+NUM_GPUS=2 #8 origin
 DISTRIBUTED_ARGS="
     --nnodes=1 \
     --nproc_per_node ${NUM_GPUS} \
@@ -6,8 +6,8 @@ DISTRIBUTED_ARGS="
     --rdzv_endpoint localhost:0
 "
 
-MODEL_ID=qwen2-vl-7b                                  
-TRAIN_DATA_PATH=./data/nli_for_simcse.csv  # path to the training data csv file
+MODEL_ID=qwen2-vl-2b                                  
+TRAIN_DATA_PATH=/mnt/disk2/yuanzm/dataset/lamra_data/nli_for_simcse.csv  # path to the training data csv file
 EVAL_DATA_PATH=None   
 
 TRAIN_VISION_ENCODER=False                           
@@ -22,11 +22,11 @@ LORA_ALPHA=128
 RUN_ID=${MODEL_ID}_LamRA_Ret_Pretrain
 
 DS_STAGE=zero2                                       
-PER_DEVICE_BATCH_SIZE=72                               
+PER_DEVICE_BATCH_SIZE=36 #72                             
 GRAD_ACCUM=1                                           
 NUM_EPOCHS=2                                            
 
-LR=2e-4   # The training will be more stable under this learning rate
+LR=0.25e-4 # The training will be more stable under this learning rate
 # LR=4e-4 # This learning rate may result in unstable training; consider multiple attempts, lowering it, or using our provided checkpoint
 MODEL_MAX_LEN=1024                                  
 
@@ -34,7 +34,7 @@ MODEL_MAX_LEN=1024
 torchrun $DISTRIBUTED_ARGS train/train_nli.py \
     --model_id $MODEL_ID \
     --data_path $TRAIN_DATA_PATH \
-    --output_dir ./checkpoints/$RUN_ID \
+    --output_dir /home/yuanzm/LamRA/checkpoints/$RUN_ID \
     --report_to tensorboard \
     --run_name $RUN_ID \
     --deepspeed ./ds_configs/${DS_STAGE}.json \

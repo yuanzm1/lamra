@@ -10,6 +10,7 @@ import torch.distributed as dist
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VLCausalLMOutputWithPast
 import torch.nn.functional as F
+import pdb
 
 class Similarity(nn.Module):
     """
@@ -25,6 +26,19 @@ class Similarity(nn.Module):
         return self.cos(x, y) / self.temp
 
 class Qwen2VLRetForConditionalGeneration(Qwen2VLForConditionalGeneration):
+    def __init__(self, config):
+        super().__init__(config)
+        # 定义MLP：输入为倒数第二层隐藏维度，输出维度与原特征一致（确保后续计算兼容）
+        self.modify_mlp = nn.Sequential(
+            nn.Linear(config.hidden_size, config.hidden_size),  # 第一层线性变换
+            nn.GELU(),  # 激活函数
+            nn.Linear(config.hidden_size, config.hidden_size)   # 输出维度与原特征匹配
+        )
+        # 初始化MLP权重
+        for m in self.modify_mlp.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def forward(
         self,
@@ -110,7 +124,8 @@ class Qwen2VLRetForConditionalGeneration(Qwen2VLForConditionalGeneration):
                 inputs_embeds[video_mask] = video_embeds
             if attention_mask is not None:
                 attention_mask = attention_mask.to(inputs_embeds.device)
-
+                
+        output_hidden_states = True
         outputs = self.model(
             input_ids=None,
             position_ids=position_ids,
@@ -124,6 +139,10 @@ class Qwen2VLRetForConditionalGeneration(Qwen2VLForConditionalGeneration):
         )
 
         hidden_states = outputs[0]
+        
+        # # 输出倒数第二层的hidden_states
+        # hidden_states = outputs[1][-2]
+        # hidden_states = self.modify_mlp(hidden_states)
 
         if has_hard_negative:
             batch_size = len(hidden_states) // 3

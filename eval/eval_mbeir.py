@@ -14,9 +14,25 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F 
 from accelerate import Accelerator
 import accelerate
+import pdb
 
 DATASET_QUERY_NUM_UPPER_BOUND = 500000
 DATASET_CAN_NUM_UPPER_BOUND = 10000000
+
+# 复用之前定义的加载MLP参数的函数
+def load_mlp_parameters(model, load_path):
+    """加载单独保存的mlp参数并赋值给模型"""
+    mlp_params = torch.load(load_path, map_location='cuda:0')
+    loaded_count = 0
+    
+    for name, param in model.named_parameters():
+        if 'modify' in name:
+            new_name = 'base_model.model.' + name
+            param.data.copy_(mlp_params[new_name])
+            loaded_count += 1
+    if loaded_count == 0:
+        raise ValueError("未找到匹配的MLP参数")
+    return loaded_count
 
 def unhash_qid(hashed_qid):
     dataset_id = hashed_qid // DATASET_QUERY_NUM_UPPER_BOUND
@@ -71,7 +87,9 @@ def eval(args):
         model_id, 
         torch_dtype=torch.bfloat16, 
         low_cpu_mem_usage=True, 
+        device_map="auto",
     )
+    load_mlp_parameters(model, os.path.join(model_id, "mlp.pth"))
 
     # processor is not changed so we still load from the original model repo
     processor = AutoProcessor.from_pretrained(original_model_id)
@@ -155,7 +173,7 @@ def eval(args):
 
     query_features = torch.cat(query_features, dim=0)
     candidate_features = torch.cat(candidate_features, dim=0)
-
+    # pdb.set_trace()
     
     if is_main_process:
         # Adjust the order according to ids 

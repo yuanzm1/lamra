@@ -40,7 +40,7 @@ register_model(
 register_model(
     model_id="qwen2-vl-2b",
     model_family_id="qwen2-vl-2b",
-    model_hf_path="./checkpoints/hf_models/Qwen2-VL-2B-Instruct"
+    model_hf_path="/mnt/disk2/yuanzm/weights/modelscope/Qwen2-VL-2B-Instruct/"
 )
 
 

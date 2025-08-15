@@ -1,4 +1,4 @@
-NUM_GPUS=2 #8
+NUM_GPUS=1 #8
 NPROC_PER_NODE=2
 NNODES=1
 NODE_RANK=0 # 1
@@ -22,7 +22,7 @@ DISTRIBUTED_ARGS="
 # arguments that are very likely to be changed
 # according to your own case
 MODEL_ID=qwen2-vl-2b                                 
-QUERY_DATA_PATH=/mnt/disk2/yuanzm/dataset/lamra_data/M-BEIR/query/union_train/mbeir_union_up_train.jsonl
+QUERY_DATA_PATH=/mnt/disk2/yuanzm/dataset/lamra_data/M-BEIR/query/union_train/mbeir_union_up_train_mini.jsonl
 CAND_POOL_PATH=/mnt/disk2/yuanzm/dataset/lamra_data/M-BEIR/cand_pool/global/mbeir_union_train_cand_pool.jsonl
 INSTRUCTIONS_PATH=/mnt/disk2/yuanzm/dataset/lamra_data/M-BEIR/instructions/query_instructions.tsv
 MODEL_LOCAL_PATH=/mnt/disk2/yuanzm/weights/lamra/checkpoints/LamRA-Ret-Pretrained-merged/
@@ -36,14 +36,14 @@ USE_LORA=True
 Q_LORA=False                                           
 LORA_R=128                                                
 LORA_ALPHA=256                                           
-RUN_ID=${MODEL_ID}_LamRA-Ret_nDCG
+RUN_ID=${MODEL_ID}_LamRA-Ret_mini_lrpro
 
 DS_STAGE=zero2                                          
 PER_DEVICE_BATCH_SIZE=12                               
 GRAD_ACCUM=1                                            
 NUM_EPOCHS=1                                         
 
-LR=0.05e-4                                               
+LR=0.025e-4                                               
 MODEL_MAX_LEN=1024
 
 
