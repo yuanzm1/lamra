@@ -21,11 +21,20 @@ import numpy as np
 def eval(args):
     original_model_id = args.original_model_id
     model_id = args.model_id 
-    model = Qwen2VLRetForConditionalGeneration.from_pretrained(
+#     model = Qwen2VLRetForConditionalGeneration.from_pretrained(
+#         model_id, 
+#         torch_dtype=torch.bfloat16, 
+#         low_cpu_mem_usage=True, 
+#     )
+    from eval.eval_zeroshot.util import load_mlp_parameters
+    from models.qwen2_vl_finetune import Qwen2VLRetFinetuneForConditionalGeneration
+    model = Qwen2VLRetFinetuneForConditionalGeneration.from_pretrained(
         model_id, 
         torch_dtype=torch.bfloat16, 
         low_cpu_mem_usage=True, 
+        device_map="auto",
     )
+    load_mlp_parameters(model, os.path.join(model_id, "mlp.pth"))
 
     # processor is not changed so we still load from the original model repo
     processor = AutoProcessor.from_pretrained(original_model_id)

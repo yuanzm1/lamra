@@ -5,7 +5,6 @@ current_file_path = os.path.dirname(os.path.abspath(__file__))
 module_path = os.path.join(current_file_path, "../../")
 sys.path.append(module_path)
 from models.qwen2_vl import Qwen2VLRetForConditionalGeneration
-from models.qwen2_vl_finetune import Qwen2VLRetFinetuneForConditionalGeneration
 import torch 
 import argparse
 from dataset.datasets_flickr import FlickrDataset
@@ -18,38 +17,24 @@ import json
 import numpy as np 
 import pdb
 
-# 复用之前定义的加载MLP参数的函数
-def load_mlp_parameters(model, load_path):
-    """加载单独保存的mlp参数并赋值给模型"""
-    mlp_params = torch.load(load_path, map_location='cuda:0')
-    loaded_count = 0
-    
-    for name, param in model.named_parameters():
-        if 'modify' in name:
-            new_name = 'base_model.model.' + name
-            param.data.copy_(mlp_params[new_name])
-            loaded_count += 1
-    if loaded_count == 0:
-        raise ValueError("未找到匹配的MLP参数")
-    return loaded_count
-
 def eval(args):
     original_model_id = args.original_model_id
     model_id = args.model_id 
-    # import pdb; pdb.set_trace()
     # model = Qwen2VLRetForConditionalGeneration.from_pretrained(
     #     model_id, 
     #     torch_dtype=torch.bfloat16, 
     #     low_cpu_mem_usage=True, 
     #     device_map="auto",
     # )
+    from eval.eval_zeroshot.util import load_mlp_parameters
+    from models.qwen2_vl_finetune import Qwen2VLRetFinetuneForConditionalGeneration
     model = Qwen2VLRetFinetuneForConditionalGeneration.from_pretrained(
         model_id, 
         torch_dtype=torch.bfloat16, 
         low_cpu_mem_usage=True, 
         device_map="auto",
     )
-    # load_mlp_parameters(model, os.path.join(model_id, "mlp.pth"))
+    load_mlp_parameters(model, os.path.join(model_id, "mlp.pth"))
 
     # processor is not changed so we still load from the original model repo
     processor = AutoProcessor.from_pretrained(original_model_id)
