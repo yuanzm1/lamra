@@ -3,7 +3,8 @@ from torch.utils.data import Dataset
 import torch 
 import os 
 current_file_path = os.path.abspath(__file__)
-replace_file_path_prefix = current_file_path.replace("dataset/datasets_ccneg.py", "data/ccneg/")
+# replace_file_path_prefix = current_file_path.replace("dataset/datasets_ccneg.py", "data/ccneg/")
+replace_file_path_prefix = current_file_path.replace("/home/yuanzm/LamRA/dataset/datasets_ccneg.py", "/mnt/disk2/yuanzm/dataset/lamra_data/ccneg/")
 
 
 class CCNegDataset(Dataset):

@@ -13,7 +13,7 @@ from accelerate.utils import DistributedType
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import torch
 import transformers
-from transformers import Trainer, deepspeed
+from transformers import Trainer, deepspeed, TrainerCallback
 
 
 from arguments import ModelArguments, DataArguments, TrainingArguments, LoraArguments
@@ -25,6 +25,34 @@ from utils import (
     rank0_print, find_all_linear_names, safe_save_model_for_hf_trainer,
     get_peft_state_maybe_zero_3, TrainerWithCustomSampler
 )
+
+class IterOverwriteSaveCallback(TrainerCallback):
+    def __init__(self, save_dir, save_fn, save_interval, trainer):
+        self.save_dir = save_dir
+        self.save_fn = save_fn
+        self.save_interval = save_interval
+        self.trainer = trainer  # 提前占位
+    
+    def on_init_end(self, args, state, control, **kwargs):
+        # Trainer 会在 kwargs 里传进来
+        self.trainer = kwargs.get("trainer", None)
+        
+    def on_step_end(self, args, state, control, **kwargs):
+        step = state.global_step
+
+        if (
+            self.trainer is not None
+            and step > 0
+            and step % self.save_interval == 0
+        ):
+            # import pdb; pdb.set_trace()
+            # 只让 rank=0 保存，避免 DDP 多卡同时写文件
+            if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+                os.makedirs(self.save_dir, exist_ok=True)
+                self.save_fn(trainer=self.trainer, output_dir=self.save_dir)
+                print(f"? Overwritten safe save at step {step} -> {self.save_dir}")
+
+        return control
 
 import pdb
 # 复用之前定义的加载MLP参数的函数
@@ -221,6 +249,14 @@ def train():
         args=training_args,
         data_collator=data_collator,
         train_dataset=train_dataset, 
+    )
+    trainer.add_callback(
+        IterOverwriteSaveCallback(
+            save_dir=output_dir,
+            save_fn=safe_save_model_for_hf_trainer,
+            save_interval=2000,
+            trainer=trainer,
+        )
     )
     
     save_mlp_parameters(model, output_dir)

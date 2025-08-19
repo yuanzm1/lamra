@@ -89,7 +89,7 @@ def eval(args):
         low_cpu_mem_usage=True, 
         device_map="auto",
     )
-    load_mlp_parameters(model, os.path.join(model_id, "mlp.pth"))
+    # load_mlp_parameters(model, os.path.join(model_id, "mlp.pth"))
 
     # processor is not changed so we still load from the original model repo
     processor = AutoProcessor.from_pretrained(original_model_id)
@@ -193,7 +193,9 @@ def eval(args):
         query_names = [unhash_qid(item) for item in query_ids]
 
 
-        save_dir_name = "./LamRA_Ret_eval_results"
+        save_dir_name = "/mnt/disk2/yuanzm/weights/lamra/LamRA_Ret_eval_results"
+        model_name = model_id.split('/')[-1]
+        save_dir_name = os.path.join(save_dir_name, model_name)
         if not os.path.exists(save_dir_name):
             os.makedirs(save_dir_name)
         save_name = args.qrels_path.split('/')[-1].replace('_qrels.txt', '')
@@ -232,6 +234,7 @@ def eval(args):
             print(f"recall_at_{k} = {sum(res[f'recall_{k}']) / len(res[f'recall_{k}'])}")
 
         model_name = model_id.split('/')[-1]
+        # pdb.set_trace()
         with open(f"{save_dir_name}/{model_name}_results.txt", 'a') as f:
             f.write(args.qrels_path + '\n')
             for k in k_lists:

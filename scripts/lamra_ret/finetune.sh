@@ -36,7 +36,7 @@ USE_LORA=True
 Q_LORA=False                                           
 LORA_R=128                                                
 LORA_ALPHA=256                                           
-RUN_ID=${MODEL_ID}_LamRA-Ret_nDCG
+RUN_ID=${MODEL_ID}_LamRA-Ret_base
 
 DS_STAGE=zero2                                          
 PER_DEVICE_BATCH_SIZE=12                               

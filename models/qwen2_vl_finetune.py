@@ -196,6 +196,7 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
         batch_size = input_ids.size(0) if input_ids is not None else inputs_embeds.size(0)
         prompt_ids = torch.arange(self.prompt_length, device=self.device).repeat(batch_size, 1)  # [batch_size, prompt_length]
         prompt_embeds = self.modify_prompt_embeddings(prompt_ids)  # [batch_size, prompt_length, hidden_size]
+        # import pdb; pdb.set_trace() 
 
         # set mini_batch to 32
         mini_batch_size = 32 
@@ -228,32 +229,32 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
                     video_embeds = self.visual(pixel_values_videos, grid_thw=video_grid_thw).to(inputs_embeds.device)
                     video_mask = input_ids == self.config.video_token_id
                     inputs_embeds[video_mask] = video_embeds
-                # if attention_mask is not None:
-                #     batch_attention_mask = attention_mask_list[i].to(batch_inputs_embeds.device)
-                    
-                # 3. 插入可学习prompt（新增逻辑）
-                # 获取当前迷你批次的prompt嵌入
-                start_idx = i * mini_batch_size
-                end_idx = min((i+1)*mini_batch_size, batch_size)
-                current_prompt_embeds = prompt_embeds[start_idx:end_idx]  # [mini_batch, prompt_length, hidden_size]
-                # 将prompt插入到输入嵌入前面
-                batch_inputs_embeds = torch.cat([current_prompt_embeds, batch_inputs_embeds], dim=1)
                 if attention_mask is not None:
-                    # 生成prompt部分的注意力掩码（全1）
-                    prompt_mask = torch.ones(
-                        (batch_inputs_embeds.size(0), self.prompt_length),
-                        device=batch_inputs_embeds.device,
-                        dtype=attention_mask_list[i].dtype
-                    )
                     batch_attention_mask = attention_mask_list[i].to(batch_inputs_embeds.device)
-                    batch_attention_mask = torch.cat([prompt_mask, batch_attention_mask], dim=1)
-                else:
-                    # 若没有原始掩码，生成全1掩码
-                    batch_attention_mask = torch.ones(
-                        (batch_inputs_embeds.size(0), batch_inputs_embeds.size(1)),
-                        device=batch_inputs_embeds.device,
-                        dtype=torch.float32
-                    )
+                    
+                # # 3. 插入可学习prompt（新增逻辑）
+                # # 获取当前迷你批次的prompt嵌入
+                # start_idx = i * mini_batch_size
+                # end_idx = min((i+1)*mini_batch_size, batch_size)
+                # current_prompt_embeds = prompt_embeds[start_idx:end_idx]  # [mini_batch, prompt_length, hidden_size]
+                # # 将prompt插入到输入嵌入前面
+                # batch_inputs_embeds = torch.cat([current_prompt_embeds, batch_inputs_embeds], dim=1)
+                # if attention_mask is not None:
+                #     # 生成prompt部分的注意力掩码（全1）
+                #     prompt_mask = torch.ones(
+                #         (batch_inputs_embeds.size(0), self.prompt_length),
+                #         device=batch_inputs_embeds.device,
+                #         dtype=attention_mask_list[i].dtype
+                #     )
+                #     batch_attention_mask = attention_mask_list[i].to(batch_inputs_embeds.device)
+                #     batch_attention_mask = torch.cat([prompt_mask, batch_attention_mask], dim=1)
+                # else:
+                #     # 若没有原始掩码，生成全1掩码
+                #     batch_attention_mask = torch.ones(
+                #         (batch_inputs_embeds.size(0), batch_inputs_embeds.size(1)),
+                #         device=batch_inputs_embeds.device,
+                #         dtype=torch.float32
+                #     )
                     
             outputs = self.model(
                 input_ids=None,
