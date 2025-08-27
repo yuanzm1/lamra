@@ -127,7 +127,7 @@ class LazySupervisedDataset(Dataset):
         query_message = self.construct_messages(query_dict)
         cand_message = self.construct_messages(cand_dict)
 
-        return query_message, cand_message 
+        return query_message, cand_message, instance
 
 class QueryDataset(Dataset):
     """Dataset for supervised fine-tuning 

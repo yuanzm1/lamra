@@ -3,7 +3,7 @@ NPROC_PER_NODE=2
 NNODES=1
 NODE_RANK=0 # 1
 MASTER_ADDR=127.0.0.1
-MASTER_PORT=29518
+MASTER_PORT=29502
 
 DISTRIBUTED_ARGS="
     --nnodes=${NNODES} \
@@ -36,7 +36,7 @@ USE_LORA=True
 Q_LORA=False                                           
 LORA_R=128                                                
 LORA_ALPHA=256                                           
-RUN_ID=${MODEL_ID}_LamRA-Ret_mini_try
+RUN_ID=${MODEL_ID}_LamRA-Ret_mini_modpro_systeml10
 
 DS_STAGE=zero2                                          
 PER_DEVICE_BATCH_SIZE=12                               
@@ -45,7 +45,6 @@ NUM_EPOCHS=1
 
 LR=0.025e-4                                               
 MODEL_MAX_LEN=1024
-
 
 torchrun $DISTRIBUTED_ARGS train/train_mbeir.py \
     --model_id $MODEL_ID \

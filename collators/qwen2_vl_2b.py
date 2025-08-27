@@ -14,6 +14,11 @@ class Qwen2VL2BDataCollator(BaseDataCollator):
         return self.tokenizer.pad_token_id
 
     def __call__(self, messages: Sequence[Dict]) -> Dict[str, torch.Tensor]:
+        # 提取所有 messages[i][-1] 生成新变量 last_elements
+        retrieve_mode = [msg[-1] for msg in messages]
+        # 截断每个子列表保留前2个元素，使 len(messages[0])=2
+        messages = [msg[:2] for msg in messages]
+        
         category_size = len(messages[0])
         if category_size == 3:
             has_hard_negative = True 
@@ -37,6 +42,7 @@ class Qwen2VL2BDataCollator(BaseDataCollator):
             padding=True,
             return_tensors="pt",
         )
+        # import pdb; pdb.set_trace()
 
         input_ids = inputs['input_ids']
         labels = input_ids.clone()
@@ -54,12 +60,14 @@ class Qwen2VL2BDataCollator(BaseDataCollator):
             image_grid_thw = inputs['image_grid_thw']
         else:
             image_grid_thw = None 
-        
+            
         return dict(
             input_ids=input_ids,
             attention_mask=attention_mask,
             pixel_values=pixel_values,
             image_grid_thw=image_grid_thw,
             labels=labels,
-            has_hard_negative=has_hard_negative
+            has_hard_negative=has_hard_negative,
+            retrieve_mode=retrieve_mode,
+            processor=self.processor
         )

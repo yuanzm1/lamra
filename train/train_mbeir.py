@@ -50,6 +50,9 @@ class IterOverwriteSaveCallback(TrainerCallback):
             if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
                 os.makedirs(self.save_dir, exist_ok=True)
                 self.save_fn(trainer=self.trainer, output_dir=self.save_dir)
+                self.trainer._save_checkpoint(self.save_dir, trial=None)
+                # self.trainer.save_model(self.save_dir)
+                # self.trainer.save_state()
                 print(f"? Overwritten safe save at step {step} -> {self.save_dir}")
 
         return control
@@ -147,6 +150,8 @@ def train():
     )
     model, tokenizer, processor = loader.load(pretrain=False)
     tokenizer.model_max_length = training_args.model_max_length
+    # 给model添加tokenizer属性
+    model.tokenizer = tokenizer
 
     if training_args.gradient_checkpointing:
         model.enable_input_require_grads()
@@ -250,19 +255,21 @@ def train():
         data_collator=data_collator,
         train_dataset=train_dataset, 
     )
-    trainer.add_callback(
-        IterOverwriteSaveCallback(
-            save_dir=output_dir,
-            save_fn=safe_save_model_for_hf_trainer,
-            save_interval=2000,
-            trainer=trainer,
-        )
-    )
+    # trainer.add_callback(
+    #     IterOverwriteSaveCallback(
+    #         save_dir=output_dir,
+    #         save_fn=safe_save_model_for_hf_trainer,
+    #         save_interval=10,
+    #         trainer=trainer,
+    #     )
+    # )
     
     save_mlp_parameters(model, output_dir)
     load_mlp_parameters(model, os.path.join(output_dir, "mlp.pth"))
+    # model.save_pretrained(output_dir)
     
     trainer.train()
+    #trainer.train(resume_from_checkpoint='/mnt/disk2/yuanzm/weights/lamra/checkpoints/qwen2-vl-2b_LamRA-Ret_base/')
     trainer.save_state()
 
     safe_save_model_for_hf_trainer(trainer=trainer, output_dir=output_dir)

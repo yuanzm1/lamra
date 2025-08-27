@@ -2,13 +2,49 @@ from typing import Dict, Sequence
 import torch
 from .base import BaseDataCollator
 from .qwen2_vision_process import process_vision_info
+from transformers import PreTrainedTokenizer, AutoProcessor
+from typing import Dict, Sequence, Optional
+import pdb
 # from qwen_vl_utils import process_vision_info
 
+def determine_mode(dataset_type):
+    if dataset_type == 'share':
+        return "text->image"
+    if dataset_type == 'flickr':
+        return "text->image"
+    if dataset_type == 'urban':
+        return "text->image"
+    if dataset_type == 'ccneg':
+        return "image->text"
+    if dataset_type == 'sugar':
+        return "image->text"
+    if dataset_type == 'visd':
+        return "text->image"
+    if dataset_type == 'vist':
+        return "image+text->image"
+    if dataset_type == 'mtfiq':
+        return "image+text->image"
+    if dataset_type == 'circo':
+        return "image+text->image"
+    if dataset_type == 'gene':
+        return "image+text->image"
 
 class EvalDataCollator(BaseDataCollator):
     @property
     def PAD_TOKEN_ID(self) -> int:
         return self.tokenizer.pad_token_id
+    
+    def __init__(
+        self, 
+        tokenizer: Optional[PreTrainedTokenizer] = None,
+        processor: Optional[AutoProcessor] = None,
+        mask_question_tokens: bool = True, 
+        dataset_type = None,
+    ) -> None:
+        self.tokenizer = tokenizer
+        self.processor = processor
+        self.mask_question_tokens = mask_question_tokens
+        self.dataset_type = dataset_type
 
     def __call__(self, messages: Sequence[Dict]) -> Dict[str, torch.Tensor]:
 
@@ -68,5 +104,7 @@ class EvalDataCollator(BaseDataCollator):
             video_grid_thw=video_grid_thw,
             labels=labels,
             has_hard_negative=has_hard_negative,
-            ids=ids 
+            ids=ids,
+            retrieve_mode=determine_mode(self.dataset_type),
+            processor=self.processor
         )

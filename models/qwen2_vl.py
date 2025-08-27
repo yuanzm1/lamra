@@ -61,7 +61,8 @@ class Qwen2VLRetForConditionalGeneration(Qwen2VLForConditionalGeneration):
         has_hard_negative=False,
         qids=None,
         dids=None,
-        ids=None 
+        ids=None,
+        **kwargs,
     ) -> Union[Tuple, Qwen2VLCausalLMOutputWithPast]:
         r"""
         Args:
@@ -116,6 +117,7 @@ class Qwen2VLRetForConditionalGeneration(Qwen2VLForConditionalGeneration):
                 image_mask = input_ids == self.config.image_token_id
                 if self.training:
                     inputs_embeds = inputs_embeds.clone()
+                #pdb.set_trace()
                 inputs_embeds[image_mask] = image_embeds
             if pixel_values_videos is not None:
                 pixel_values_videos = pixel_values_videos.type(self.visual.get_dtype())

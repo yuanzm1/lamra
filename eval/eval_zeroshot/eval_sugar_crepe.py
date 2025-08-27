@@ -19,13 +19,15 @@ import accelerate
 def eval(args):
     original_model_id = args.original_model_id
     model_id = args.model_id 
-    model = Qwen2VLRetForConditionalGeneration.from_pretrained(
+    from eval.eval_zeroshot.util import load_mlp_parameters
+    from models.qwen2_vl_finetune import Qwen2VLRetFinetuneForConditionalGeneration
+    model = Qwen2VLRetFinetuneForConditionalGeneration.from_pretrained(
         model_id, 
         torch_dtype=torch.bfloat16, 
         low_cpu_mem_usage=True, 
         device_map="auto",
     )
-
+    load_mlp_parameters(model, os.path.join(model_id, "mlp.pth"))
     # processor is not changed so we still load from the original model repo
     processor = AutoProcessor.from_pretrained(original_model_id)
     tokenizer = processor.tokenizer 
@@ -56,8 +58,8 @@ def eval(args):
         type='text',
     )
 
-    query_data_collator = EvalDataCollator(tokenizer=tokenizer, processor=processor)
-    cand_data_collator = EvalDataCollator(tokenizer=tokenizer, processor=processor)
+    query_data_collator = EvalDataCollator(tokenizer=tokenizer, processor=processor, dataset_type='sugar')
+    cand_data_collator = EvalDataCollator(tokenizer=tokenizer, processor=processor, dataset_type='sugar')
     
     query_dataloader = DataLoader(query_dataset, batch_size=args.batch_size, num_workers=8, shuffle=False, collate_fn=query_data_collator)
     candidate_dataloader = DataLoader(cand_dataset, batch_size=args.batch_size, num_workers=8, shuffle=False, collate_fn=cand_data_collator)

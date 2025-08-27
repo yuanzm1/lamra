@@ -10,6 +10,6 @@ def load_mlp_parameters(model, load_path):
             new_name = 'base_model.model.' + name
             param.data.copy_(mlp_params[new_name])
             loaded_count += 1
-    if loaded_count == 0:
-        raise ValueError("未找到匹配的MLP参数")
+    # if loaded_count == 0:
+    #     raise ValueError("未找到匹配的MLP参数")
     return loaded_count
