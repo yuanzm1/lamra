@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F 
 from accelerate import Accelerator
 import accelerate
+import pdb
 
 
 def eval(args):
@@ -27,7 +28,7 @@ def eval(args):
         low_cpu_mem_usage=True, 
         device_map="auto",
     )
-    load_mlp_parameters(model, os.path.join(model_id, "mlp.pth"))
+    # load_mlp_parameters(model, os.path.join(model_id, "mlp.pth"))
 
     # processor is not changed so we still load from the original model repo
     processor = AutoProcessor.from_pretrained(original_model_id)
@@ -59,8 +60,8 @@ def eval(args):
     query_data_collator = EvalDataCollator(tokenizer=tokenizer, processor=processor, dataset_type='ccneg')
     cand_data_collator = EvalDataCollator(tokenizer=tokenizer, processor=processor, dataset_type='ccneg')
     
-    query_dataloader = DataLoader(query_dataset, batch_size=args.batch_size, num_workers=8, shuffle=False, collate_fn=query_data_collator)
-    candidate_dataloader = DataLoader(cand_dataset, batch_size=args.batch_size, num_workers=8, shuffle=False, collate_fn=cand_data_collator)
+    query_dataloader = DataLoader(query_dataset, batch_size=args.batch_size, num_workers=0, shuffle=False, collate_fn=query_data_collator)
+    candidate_dataloader = DataLoader(cand_dataset, batch_size=args.batch_size, num_workers=0, shuffle=False, collate_fn=cand_data_collator)
 
     accelerator = Accelerator(mixed_precision='bf16')
     device = accelerator.device 
@@ -81,6 +82,9 @@ def eval(args):
     query_ids = []
     candidate_features = []
     candidate_ids = []
+    attentions_q = []
+    attentions_c = []
+    idx = 0
 
     from tqdm import tqdm 
     with torch.no_grad():
@@ -94,6 +98,7 @@ def eval(args):
             batch_query_ids = accelerate.utils.gather_object(batch_query_ids)[:len(query_embed)]
             query_ids.extend(batch_query_ids)
             query_features.append(query_embed)
+            # attentions_q.append(attention_q)
 
         for batch in tqdm(candidate_dataloader, disable=not is_main_process):
             batch = tensors_to_device(batch, device)
@@ -103,10 +108,22 @@ def eval(args):
             batch_candidate_ids = accelerator.gather_for_metrics(batch_candidate_ids)[:len(candidate_embed)]
             candidate_ids.extend(batch_candidate_ids)
             candidate_features.append(candidate_embed)
-
+            # attentions_c.append(attention_c)
+            
     query_features = torch.cat(query_features, dim=0)
     candidate_features = torch.cat(candidate_features, dim=0)
-
+    
+    import pickle
+    save_dict = {
+        'query_features':query_features,
+        'candidate_features':candidate_features,
+        'query_ids':query_ids,
+        'candidate_ids':candidate_ids,
+        # 'attentions_c':attentions_c,
+        # 'attentions_q':attentions_q,
+    }
+    with open(os.path.join("/mnt/disk2/yuanzm/weights/lamra/",model_id+".json"), 'wb') as f:
+        pickle.dump(save_dict, f)
     
     if is_main_process:
         # Adjust the order according to ids 

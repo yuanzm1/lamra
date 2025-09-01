@@ -108,38 +108,38 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
         # )
         # self.model = get_peft_model(self.model, peft_config)
 
-        # 定义MLP：输入为倒数第二层隐藏维度，输出维度与原特征一致（确保后续计算兼容）
-        self.modify_mlp = nn.Sequential(
-            nn.Linear(config.hidden_size, config.hidden_size),  # 第一层线性变换
-            nn.GELU(),  # 激活函数
-            nn.Linear(config.hidden_size, config.hidden_size)   # 输出维度与原特征匹配
-        )
-        # 初始化MLP权重
-        for m in self.modify_mlp.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                nn.init.zeros_(m.bias)
+        # # 定义MLP：输入为倒数第二层隐藏维度，输出维度与原特征一致（确保后续计算兼容）
+        # self.modify_mlp = nn.Sequential(
+        #     nn.Linear(config.hidden_size, config.hidden_size),  # 第一层线性变换
+        #     nn.GELU(),  # 激活函数
+        #     nn.Linear(config.hidden_size, config.hidden_size)   # 输出维度与原特征匹配
+        # )
+        # # 初始化MLP权重
+        # for m in self.modify_mlp.modules():
+        #     if isinstance(m, nn.Linear):
+        #         nn.init.xavier_uniform_(m.weight)
+        #         nn.init.zeros_(m.bias)
 
         # 新增：可学习的prompt
         hidden_size = config.hidden_size
-        self.prompt_length = 10   # 可学习prompt的长度（可根据需求调整）2 10
+        self.prompt_length = 1  # 可学习prompt的长度（可根据需求调整）2 10
         self.modify_generate=RetrievalPromptGenerator(hidden_size=hidden_size, prompt_length=self.prompt_length)
         self.modify_prompt_embeddings = nn.Embedding(
             self.prompt_length,  # prompt token数量
             config.hidden_size   # 嵌入维度，与模型隐藏层维度一致
         )
-        self.modify_prompt_mapping = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size * self.prompt_length),  # 扩展维度
-            nn.GELU(),
-            nn.Unflatten(1, (self.prompt_length, hidden_size))  # 拆分维度
-        )
-        # 初始化prompt嵌入（可选：用正态分布初始化）
-        nn.init.normal_(self.modify_prompt_embeddings.weight, mean=0.0, std=config.initializer_range)
+        # self.modify_prompt_mapping = nn.Sequential(
+        #     nn.Linear(hidden_size, hidden_size * self.prompt_length),  # 扩展维度
+        #     nn.GELU(),
+        #     nn.Unflatten(1, (self.prompt_length, hidden_size))  # 拆分维度
+        # )
+        # # 初始化prompt嵌入（可选：用正态分布初始化）
+        # nn.init.normal_(self.modify_prompt_embeddings.weight, mean=0.0, std=config.initializer_range)
                 
-        # 新增：记录训练轮次，用于控制伪标签更新频率
-        self.register_buffer("current_iter", torch.tensor(0, dtype=torch.long))
-        # 新增：用于缓存历史相似度，稳定伪标签生成
-        self.register_buffer("prev_similarities", None)
+        # # 新增：记录训练轮次，用于控制伪标签更新频率
+        # self.register_buffer("current_iter", torch.tensor(0, dtype=torch.long))
+        # # 新增：用于缓存历史相似度，稳定伪标签生成
+        # self.register_buffer("prev_similarities", None)
 
     def get_features(
         self,
@@ -220,9 +220,9 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
             modified_batch_embed: 插入后的嵌入，[batch_size, seq_len + prompt_len, hidden_size]
             modified_attention_mask: 调整后的掩码，[batch_size, seq_len + prompt_len]
         """
-        new_input_ids = processor(text="This is a retrieve task.")['input_ids'].to(input_ids.device)
-        new_task_prompt_embed = self.model.embed_tokens(new_input_ids).repeat(task_prompt_embed.shape[0],1,1)
-        task_prompt_embed = new_task_prompt_embed
+        # new_input_ids = processor(text="This is a retrieve task.")['input_ids'].to(input_ids.device)
+        # new_task_prompt_embed = self.model.embed_tokens(new_input_ids).repeat(task_prompt_embed.shape[0],1,1)
+        # task_prompt_embed = new_task_prompt_embed
         
         batch_size = batch_embed.size(0)
         prompt_length = task_prompt_embed.size(1)
@@ -231,6 +231,7 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
         assert task_prompt_embed.size(0) == batch_size, "prompt批次大小不匹配"
         assert task_prompt_embed.size(2) == hidden_size, "prompt隐藏维度不匹配"
         assert attention_mask.size() == input_ids.size(), "原始掩码与input_ids形状不匹配"
+        
         # 2. 解析特殊标记ID（用于定位插入位置）
         im_end_token = processor.tokenizer.convert_tokens_to_ids("<|im_end|>")
         user_start_token = processor.tokenizer.convert_tokens_to_ids("user")
@@ -252,13 +253,7 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
             
             insert_pos = (current_ids == system_start_token).nonzero().squeeze(dim=1).tolist()[0]  # 默认插入位置（若未找到用户消息块）
             insert_pos += 2
-            # for pos in reversed(im_end_positions):
-            #     # 检查该<|im_end|>是否属于用户消息块（前序有<|im_start|>user）
-            #     if pos > 0 and current_ids[pos-1] == user_start_token:
-            #         insert_pos = pos  # 插入到<|im_end|>之前
-            #         break
                 
-            # pdb.set_trace()
             # 4. 拆分并插入嵌入
             part1_embed = current_embed[:insert_pos]
             part2_embed = current_embed[insert_pos:]
@@ -411,6 +406,7 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
         mini_batch_size = 32
         input_ids_list = torch.split(input_ids, mini_batch_size)
         attention_mask_list = torch.split(attention_mask, mini_batch_size)
+        prompt_embeds_list = torch.split(prompt_embeds, mini_batch_size)
         if image_grid_thw is not None:
             cumsum_pixel_values = torch.cumsum(image_grid_thw[:, 1] * image_grid_thw[:, 2], dim=-1) 
             zero_tensor = torch.tensor([0], device=cumsum_pixel_values.device) # be convinient for extracting batch_pixel_values
@@ -418,6 +414,7 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
             image_nums = 0
         
         all_hidden_states = []
+        attentions = []
 
         for i in range(len(input_ids_list)):
             if inputs_embeds is None:
@@ -433,6 +430,13 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
                         if self.training:
                             batch_inputs_embeds = batch_inputs_embeds.clone()
                         batch_inputs_embeds[image_mask] = batch_image_embeds
+                # if pixel_values is not None:
+                #     pixel_values = pixel_values.type(self.visual.get_dtype())
+                #     batch_image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw).to(batch_inputs_embeds.device)
+                #     image_mask = input_ids_list[i] == self.config.image_token_id
+                #     if self.training:
+                #         batch_inputs_embeds = batch_inputs_embeds.clone()
+                #     batch_inputs_embeds[image_mask] = batch_image_embeds
                 if pixel_values_videos is not None:
                     pixel_values_videos = pixel_values_videos.type(self.visual.get_dtype())
                     video_embeds = self.visual(pixel_values_videos, grid_thw=video_grid_thw).to(inputs_embeds.device)
@@ -465,16 +469,17 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
                 #         dtype=torch.float32
                 #     )
                 
-                
+                # pdb.set_trace()
                 # 找到特定的位置(system, user)插入prompt并调整掩码
                 batch_inputs_embeds, batch_attention_mask = self.insert_prompt_and_adjust_mask(
                     batch_embed=batch_inputs_embeds,
-                    task_prompt_embed=prompt_embeds,
-                    input_ids=input_ids,
+                    task_prompt_embed=prompt_embeds_list[i],
+                    input_ids=input_ids_list[i],
                     attention_mask=attention_mask_list[i],
                     processor=processor
                 )
-                    
+            
+            output_attentions = True
             outputs = self.model(
                 input_ids=None,
                 position_ids=position_ids,
@@ -486,11 +491,26 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
-
+            
+            # pdb.set_trace()
+            valid_mask = batch_attention_mask[i].bool()
+            valid_indices = torch.where(valid_mask)[0]
+            # 步骤1: 保留有效token作为Query（行）
+            layer_avg_attentions = []
+            for layer_attention in outputs['attentions']:
+                # layer_attention 形状: (batch_size, num_heads, seq_len, seq_len)
+                avg_attention = torch.mean(layer_attention, dim=1)  # 结果形状: (batch_size, seq_len, seq_len)
+                layer_avg_attentions.append(avg_attention)
+            attention_valid_query = torch.stack(layer_avg_attentions, dim=0)[:,:,valid_indices, :]  # (valid_seq_len, seq_len)
+            attention_valid = attention_valid_query[..., valid_indices]
+            attention_valid = attention_valid[-1]
+            
             hidden_states = outputs[0]
             all_hidden_states.append(hidden_states)
+            attentions.append(attention_valid)
 
         hidden_states = torch.cat(all_hidden_states)
+        attentions = torch.cat(attentions)
 
         if has_hard_negative:
             batch_size = len(hidden_states) // 3
