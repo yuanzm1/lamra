@@ -142,3 +142,7 @@ If you use this code for your research or project, please cite:
   year={2025}
 }
 ```
+
+## Usage of see_ccneg
+the modificaition is in eval/eval_zeroshot/eval_ccneg.py, models/qwen2_vl_finetune.py and my_tools/see_ccneg.py
+First, get the features of ccneg by using eval_ccneg. Then, see_ccneg can see the tsne features of ccneg.
