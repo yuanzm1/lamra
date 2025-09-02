@@ -6,6 +6,22 @@ from .qwen2_vision_process import process_vision_info
 
 
 class MbeirQueryDataCollator(BaseDataCollator):
+    def __init__(
+        self,
+        tokenizer,
+        processor,
+        mask_question_tokens: bool = True,
+        # 子类新增参数
+        mode=None
+    ):
+        # 调用父类的初始化方法，传入父类所需的参数
+        super().__init__(
+            tokenizer=tokenizer,
+            processor=processor,
+            mask_question_tokens=mask_question_tokens
+        )
+        self.mode = mode
+    
     @property
     def PAD_TOKEN_ID(self) -> int:
         return self.tokenizer.pad_token_id
@@ -58,10 +74,28 @@ class MbeirQueryDataCollator(BaseDataCollator):
             image_grid_thw=image_grid_thw,
             labels=labels,
             has_hard_negative=has_hard_negative,
-            qids=qids
+            qids=qids,
+            retrieve_mode=self.mode,
+            processor=self.processor,
         )
 
 class MbeirCandidateDataCollator(BaseDataCollator):
+    def __init__(
+        self,
+        tokenizer,
+        processor,
+        mask_question_tokens: bool = True,
+        # 子类新增参数
+        mode=None
+    ):
+        # 调用父类的初始化方法，传入父类所需的参数
+        super().__init__(
+            tokenizer=tokenizer,
+            processor=processor,
+            mask_question_tokens=mask_question_tokens
+        )
+        self.mode = mode
+    
     @property
     def PAD_TOKEN_ID(self) -> int:
         return self.tokenizer.pad_token_id
@@ -123,5 +157,7 @@ class MbeirCandidateDataCollator(BaseDataCollator):
             image_grid_thw=image_grid_thw,
             labels=labels,
             has_hard_negative=has_hard_negative,
-            dids=dids
+            dids=dids,
+            retrieve_mode=self.mode,
+            processor=self.processor,
         )
