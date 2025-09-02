@@ -481,7 +481,7 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
                     processor=processor
                 )
             
-            output_attentions = True
+            # output_attentions = True
             outputs = self.model(
                 input_ids=None,
                 position_ids=position_ids,
@@ -494,24 +494,24 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
                 return_dict=return_dict,
             )
             
-            valid_mask = batch_attention_mask[i].bool()
-            valid_indices = torch.where(valid_mask)[0]
-            # 步骤1: 保留有效token作为Query（行）
-            layer_avg_attentions = []
-            for layer_attention in outputs['attentions']:
-                # layer_attention 形状: (batch_size, num_heads, seq_len, seq_len)
-                avg_attention = torch.mean(layer_attention, dim=1)  # 结果形状: (batch_size, seq_len, seq_len)
-                layer_avg_attentions.append(avg_attention)
-            attention_valid_query = torch.stack(layer_avg_attentions, dim=0)[:,:,valid_indices, :]  # (valid_seq_len, seq_len)
-            attention_valid = attention_valid_query[..., valid_indices]
-            attention_valid = attention_valid[-1]
+            # valid_mask = batch_attention_mask[i].bool()
+            # valid_indices = torch.where(valid_mask)[0]
+            # # 步骤1: 保留有效token作为Query（行）
+            # layer_avg_attentions = []
+            # for layer_attention in outputs['attentions']:
+            #     # layer_attention 形状: (batch_size, num_heads, seq_len, seq_len)
+            #     avg_attention = torch.mean(layer_attention, dim=1)  # 结果形状: (batch_size, seq_len, seq_len)
+            #     layer_avg_attentions.append(avg_attention)
+            # attention_valid_query = torch.stack(layer_avg_attentions, dim=0)[:,:,valid_indices, :]  # (valid_seq_len, seq_len)
+            # attention_valid = attention_valid_query[..., valid_indices]
+            # attention_valid = attention_valid[-1]
             
             hidden_states = outputs[0]
             all_hidden_states.append(hidden_states)
-            attentions.append(attention_valid)
+            # attentions.append(attention_valid)
 
         hidden_states = torch.cat(all_hidden_states)
-        attentions = torch.cat(attentions)
+        # attentions = torch.cat(attentions)
 
         if has_hard_negative:
             batch_size = len(hidden_states) // 3
@@ -549,17 +549,21 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
             # Dummy vectors for allgather
             embed1_list = [torch.zeros_like(embed1) for _ in range(dist.get_world_size())]
             embed2_list = [torch.zeros_like(embed2) for _ in range(dist.get_world_size())]
+            modpro_list = [torch.zeros_like(modpro) for _ in range(dist.get_world_size())]
             # Allgather
             dist.all_gather(tensor_list=embed1_list, tensor=embed1.contiguous())
             dist.all_gather(tensor_list=embed2_list, tensor=embed2.contiguous())
+            dist.all_gather(tensor_list=modpro_list, tensor=modpro.contiguous())
 
             # Since allgather results do not have gradients, we replace the
             # current process's corresponding embeddings with original tensors
             embed1_list[dist.get_rank()] = embed1
             embed2_list[dist.get_rank()] = embed2
+            modpro_list[dist.get_rank()] = modpro
             # Get full batch embeddings: (bs x N, hidden)
             embed1 = torch.cat(embed1_list, 0)
             embed2 = torch.cat(embed2_list, 0)
+            modpro = torch.cat(modpro_list, 0)
 
         sim = Similarity(temp=0.05)
 
@@ -579,6 +583,7 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
         modpro_normalized = modpro / norms  # 形状仍为 [10, 1024]
         modpro_sim = torch.matmul(modpro_normalized, modpro_normalized.T)
         # with torch.no_grad():
+        # pdb.set_trace()
         cos_sim *= modpro_sim 
 
         loss = loss_fct(cos_sim, nce_labels)
