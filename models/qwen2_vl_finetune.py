@@ -84,7 +84,7 @@ class RetrievalPromptGenerator(nn.Module):
         prompt_embed = mode_embed.view(1, self.prompt_length, self.hidden_size)
         # 4. 扩展到批次大小
         prompt_embed = prompt_embed.repeat(batch_size, 1, 1)
-        return prompt_embed
+        return prompt_embed, mode_embed
 
 class Similarity(nn.Module):
     """
@@ -128,11 +128,11 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
             self.prompt_length,  # prompt token数量
             config.hidden_size   # 嵌入维度，与模型隐藏层维度一致
         )
-        # self.modify_prompt_mapping = nn.Sequential(
-        #     nn.Linear(hidden_size, hidden_size * self.prompt_length),  # 扩展维度
-        #     nn.GELU(),
-        #     nn.Unflatten(1, (self.prompt_length, hidden_size))  # 拆分维度
-        # )
+        self.modify_prompt_mapping = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size * self.prompt_length),  # 扩展维度
+            nn.GELU(),
+            nn.Unflatten(1, (self.prompt_length, hidden_size))  # 拆分维度
+        )
         # # 初始化prompt嵌入（可选：用正态分布初始化）
         # nn.init.normal_(self.modify_prompt_embeddings.weight, mean=0.0, std=config.initializer_range)
                 
@@ -350,19 +350,21 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
         
         # 根据不同mode生成不同的prompt
         batch_size = input_ids.size(0) if input_ids is not None else inputs_embeds.size(0)
-        all_embeds = []
+        all_embeds, all_modpro = [], []
         # 为每个测试用例生成embed（单样本）
         if not inference:
             for case in retrieve_mode:
                 mode = self.modify_generate.determine_mode(case["query"], case["pos_cand"])
-                embed= self.modify_generate(mode, batch_size=1)
+                embed, mode_pro= self.modify_generate(mode, batch_size=1)
                 all_embeds.append(embed)  # 每个embed形状: [1, prompt_length, hidden_size]
+                all_modpro.append(mode_pro)
             # 拼接所有embed：test_case长度即batch_size
             all_embeds = all_embeds + all_embeds.copy()
             prompt_embeds = torch.cat(all_embeds, dim=0)  # 拼接后形状: [batch_size, prompt_length, hidden_size
+            modpro = torch.cat(all_modpro, dim=0) # [batch_size, hidden_size]
         else:
             for _ in range(batch_size):
-                embed= self.modify_generate(retrieve_mode, batch_size=1)
+                embed, _ = self.modify_generate(retrieve_mode, batch_size=1)
                 all_embeds.append(embed)  # 每个embed形状: [1, prompt_length, hidden_size]
             prompt_embeds = torch.cat(all_embeds, dim=0)  # 拼接后形状: [batch_size, prompt_length, hidden_size
 
@@ -492,7 +494,6 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
                 return_dict=return_dict,
             )
             
-            # pdb.set_trace()
             valid_mask = batch_attention_mask[i].bool()
             valid_indices = torch.where(valid_mask)[0]
             # 步骤1: 保留有效token作为Query（行）
@@ -573,6 +574,12 @@ class Qwen2VLRetFinetuneForConditionalGeneration(Qwen2VLForConditionalGeneration
             cos_sim = torch.cat([cos_sim, embed1_embed3_cos], 1)
         
         nce_labels = torch.arange(cos_sim.size(0)).long().to(cos_sim.device)
+        
+        norms = torch.norm(modpro, dim=1, keepdim=True)  # 保持维度以便广播
+        modpro_normalized = modpro / norms  # 形状仍为 [10, 1024]
+        modpro_sim = torch.matmul(modpro_normalized, modpro_normalized.T)
+        # with torch.no_grad():
+        cos_sim *= modpro_sim 
 
         loss = loss_fct(cos_sim, nce_labels)
         
